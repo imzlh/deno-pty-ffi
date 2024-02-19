@@ -17,8 +17,9 @@ while (true) {
             },
         });
 
-    pty.readable.pipeTo(client.writable);
-    client.readable.pipeTo(pty.writable);
-
-    pty.writable.abort();
+    pty.readable.pipeTo(client.writable).catch(() => console.log('PTY Closed.'));
+    client.readable.pipeTo(pty.writable).catch(() => console.log('Client Closed.'));
+    
+    setTimeout(() => client.close(),10000);
+    setTimeout(() => console.log('Status:',pty.status),12000);
 }

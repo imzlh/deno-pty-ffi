@@ -18,7 +18,7 @@ Deno.test("smoke", async () => {
   await write_and_expect([writer,reader], "let a = 4; a + a\n\r", "8");
 
   // test size, resize
-  assertEquals(pty.getSize(), {
+  assertEquals(pty.size, {
     rows: 24,
     cols: 80,
     pixel_height: 0,
@@ -51,13 +51,13 @@ Deno.test("getSize/resize", () => {
     },
   });
 
-  pty.resize({
+  pty.size = {
     rows: 50,
     cols: 120,
     pixel_height: 1,
     pixel_width: 1,
-  });
-  assertEquals(pty.getSize(), {
+  };
+  assertEquals(pty.size, {
     rows: 50,
     cols: 120,
     pixel_height: 1,

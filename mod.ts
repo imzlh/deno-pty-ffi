@@ -64,10 +64,12 @@ let url: string;
 const result = await (await fetch('https://api.github.com/repos/sigmaSd/deno-pty-ffi/releases/latest')).json();
 if (result["tag_name"]) url = "https://github.com/sigmaSd/deno-pty-ffi/releases/download/" + result["tag_name"];
 else {
-    console.debug(result);
-    throw new Error(
-        'Failed to get the current Lib version.Please ensure the network connection.'
+    console.debug(result['message'] || result);
+    console.error(
+        'Failed to get the current PtyLib version.Please ensure the network connection.'
     );
+    // fallback
+    url = "https://github.com/sigmaSd/deno-pty-ffi/releases/download/0.19.6/";
 }
 
 // 初始化FFI库
@@ -101,6 +103,7 @@ const encoder = new TextEncoder(),
  */
 export class Pty extends TransformStream<Uint8Array>{
     #this;
+    #running;
 
     static BUFFER = 8;
     static SLEEP = 50;
@@ -145,8 +148,15 @@ export class Pty extends TransformStream<Uint8Array>{
             },
             transform: async (data, ctrl) => {
 
-                // if(data[0] == wrap[0] || data[0] == wrap[1])
-                //     data = wrap;
+                // 兼容性设置：使用\r\n代替回车
+                if(data[0] == wrap[0] || data[0] == wrap[1])
+                    data = wrap;
+
+                if(!(data instanceof Uint8Array))
+                    throw new TypeError('Write failed: Not a vaild UInt8Array.');
+
+                if(data.length == 0)
+                    return;
 
                 const dataBuf = new Uint8Array(8);
                 const result = await LIBRARY.symbols.pty_write(
@@ -159,20 +169,22 @@ export class Pty extends TransformStream<Uint8Array>{
                 )!;
                 if (result === -1) ctrl.error(new Deno.UnsafePointerView(dataPtr).getCString());
             },
-            flush: async () => {
-                clearInterval(timer)
-                await LIBRARY.symbols.pty_close(this.#this)
+            cancel: async () => {
+                clearInterval(timer);
+                await LIBRARY.symbols.pty_close(this.#this);
+                this.#running = false;
             }
         });
 
-        this.#this = ptr;
+        this.#this = ptr,this.#running = true;
     }
 
     /**
      * Resizes the pty to the specified size.
      * @param size - The new size for the pty.
      */
-    resize(size: PtySize): void {
+    set size(size: PtySize) {
+        if(!this.#running) throw new TypeError('Failed: Process dead.');
         const errBuf = new Uint8Array(8);
         const result = LIBRARY.symbols.pty_resize(
             this.#this,
@@ -188,11 +200,16 @@ export class Pty extends TransformStream<Uint8Array>{
      * Gets the size of the pty.
      * @returns The size of the pty.
      */
-    getSize(): PtySize {
+    get size(): PtySize {
+        if(!this.#running) throw new TypeError('Failed: Process dead.');
         const dataBuf = new Uint8Array(8),
             result = LIBRARY.symbols.pty_get_size(this.#this, dataBuf),
             data = new Deno.UnsafePointerView(getPointer(dataBuf)).getCString();
         if (result === -1) throw new Error(data);
         return JSON.parse(data);
+    }
+
+    get status(){
+        return this.#running ? 'running' : 'stopped';
     }
 }
