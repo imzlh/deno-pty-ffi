@@ -1,70 +1,24 @@
-// full version at https://github.com/sigmaSd/Minimize-Deno
 import { Pty } from "./mod.ts";
 
-if (Deno.args.length === 0) throw new Error("no program provided");
-
-const pty = new Pty({
-  cmd: "deno",
-  args: ["run", ...Deno.args],
-  env: [["NO_COLOR", "1"]],
-});
-
-type Permission = "read" | "write" | "net" | "env";
-const permissions: Record<Permission, string[]> = {
-  read: [],
-  write: [],
-  net: [],
-  env: [],
-};
-
-Deno.addSignalListener("SIGINT", () => {
-  console.log("\nPermissions:");
-  console.log(permissions);
-  console.log("Command:");
-  console.log(
-    "deno run " +
-      (
-        permissions.read ? "--allow-read=" + permissions.read : ""
-      ) + " " +
-      (
-        permissions.write ? "--allow-write=" + permissions.write : ""
-      ) + " " +
-      (
-        permissions.net ? "--allow-net=" + permissions.net : ""
-      ) + " " +
-      (
-        permissions.env ? "--allow-env=" + permissions.env : ""
-      ),
-  );
-  Deno.exit();
+const socket = Deno.listen({
+    port: 6666,
+    hostname: 'localhost'
 });
 
 while (true) {
-  const { data: line, done } = await pty.read();
-  if (done) break;
+    const client = await socket.accept();
+    if (!client) continue;
+    const args = Deno.build.os == 'windows' ? ["\\k","chcp 65001"] : [],
+        pty = new Pty({
+            command: Deno.build.os == 'windows' ? 'cmd' : 'sh',
+            args,
+            env: {
+                "TERM": "xterm"
+            },
+        });
 
-  if (line.includes("Granted") && line.includes("access")) {
-    const line_split = line.split(/\s+/);
-    const mark = line_split.indexOf("access");
-    const permission_type = line_split[mark - 1] as Permission;
-    let permission = line_split[mark + 2].slice(1, -2);
+    pty.readable.pipeTo(client.writable);
+    client.readable.pipeTo(pty.writable);
 
-    switch (permission) {
-      case "CWD":
-        permission = Deno.cwd();
-        break;
-      case "TMP":
-        permission = pty.tmpDir();
-        break;
-    }
-
-    console.log(permission_type, permission);
-    permissions[permission_type].push(permission);
-  }
-
-  if (line.includes("Allow?")) {
-    await pty.write("y\n");
-  }
+    pty.writable.abort();
 }
-
-pty.close();

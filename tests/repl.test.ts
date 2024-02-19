@@ -4,16 +4,18 @@ import { Pty } from "../mod.ts";
 
 Deno.test("smoke", async () => {
   const pty = new Pty({
-    cmd: "deno",
+    command: "deno",
     args: ["repl"],
-    env: [["NO_COLOR", "1"]],
-  });
+    env: {"NO_COLOR": "1"},
+  }),
+  reader = pty.readable.getReader(),
+  writer = pty.writable.getWriter();
 
   // read header
-  await pty.read();
+  await reader.read();
 
-  await write_and_expect(pty, "5+4\n\r", "9");
-  await write_and_expect(pty, "let a = 4; a + a\n\r", "8");
+  await write_and_expect([writer,reader], "5+4\n\r", "9");
+  await write_and_expect([writer,reader], "let a = 4; a + a\n\r", "8");
 
   // test size, resize
   assertEquals(pty.getSize(), {
@@ -25,24 +27,28 @@ Deno.test("smoke", async () => {
 
   // close the first pty
   // we should still create other ptys
-  pty.close();
+  writer.close();
   const pty2 = new Pty({
-    cmd: "deno",
+    command: "deno",
     args: ["repl"],
-    env: [["NO_COLOR", "1"]],
-  });
+    env: {"NO_COLOR": "1"},
+  }),
+  reader2 = pty.readable.getReader(),
+  writer2 = pty.writable.getWriter();;
   // read header
-  await pty2.read();
+  await reader2.read();
 
-  await write_and_expect(pty2, "5+4\n\r", "9");
-  pty2.close();
+  await write_and_expect([writer2,reader2], "5+4\n\r", "9");
+  writer2.close();
 });
 
 Deno.test("getSize/resize", () => {
   const pty = new Pty({
-    cmd: "deno",
+    command: "deno",
     args: ["repl"],
-    env: [["NO_COLOR", "1"]],
+    env: {
+      "NO_COLOR": "1"
+    },
   });
 
   pty.resize({
@@ -57,19 +63,17 @@ Deno.test("getSize/resize", () => {
     pixel_height: 1,
     pixel_width: 1,
   });
-
-  pty.close();
 });
 
-async function write_and_expect(pty: Pty, toWrite: string, expect: string) {
-  await pty.write(toWrite);
+async function write_and_expect(stream: [WritableStreamDefaultWriter,ReadableStreamDefaultReader], toWrite: string, expect: string) {
+  await stream[0].write(toWrite);
 
   let timeoutId;
   const success = await Promise.any([
     // FIXME: in case of timout, this promise reamins alive and it keeps the test form exiting
     (async () => {
       while (1) {
-        const { data: r, done } = await pty.read();
+        const { value: r, done } = await stream[1].read();
         if (done) break;
         if (r && r.includes(expect)) {
           return true;

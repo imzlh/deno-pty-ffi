@@ -350,39 +350,6 @@ pub unsafe extern "C" fn pty_close(this: *mut Pty) {
     let _ = this.ck.kill();
 }
 
-/// # Safety
-/// Requires a pointer to a buffer of size 8 to write the result to
-///
-/// The result is either
-/// - tmpDir as cstring
-/// - error as cstring
-///
-/// Returns -1 on error
-#[no_mangle]
-pub unsafe extern "C" fn tmp_dir(result: *mut usize) -> i8 {
-    fn inner() -> Result<CString> {
-        Ok(CString::new(
-            std::env::temp_dir()
-                .to_str()
-                .ok_or("path is not valid utf8?")?
-                .to_owned(),
-        )?)
-    }
-
-    match inner() {
-        Ok(data) => {
-            *result = data.into_raw() as _;
-            0
-        }
-        Err(err) => {
-            *result = CString::new(err.to_string())
-                .expect("err is valid cstring")
-                .into_raw() as _;
-            -1
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::mpsc;

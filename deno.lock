@@ -1,7 +1,8 @@
 {
   "version": "3",
   "redirects": {
-    "https://deno.land/x/deno_pty_ffi/mod.ts": "https://deno.land/x/deno_pty_ffi@0.19.0/mod.ts"
+    "https://deno.land/x/deno_pty_ffi/mod.ts": "https://deno.land/x/deno_pty_ffi@0.19.0/mod.ts",
+    "https://deno.land/x/plug/mod.ts": "https://deno.land/x/plug@1.0.3/mod.ts"
   },
   "remote": {
     "https://deno.land/std@0.170.0/fmt/colors.ts": "03ad95e543d2808bc43c17a3dd29d25b43d0f16287fe562a0be89bf632454a12",
